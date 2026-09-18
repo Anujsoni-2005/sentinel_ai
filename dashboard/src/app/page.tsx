@@ -1,23 +1,33 @@
 "use client";
 
-import { useEffect, useState, useMemo } from "react";
-import { 
-  AlertCircle, 
-  CheckCircle2, 
-  ShieldAlert,
-  ChevronRight,
+import { useEffect, useMemo, useState } from "react";
+import {
+  Activity,
+  AlertCircle,
+  ArrowUpRight,
+  Bell,
+  Check,
+  CheckCircle2,
   ChevronDown,
-  Terminal,
-  BrainCircuit,
+  ChevronRight,
+  CircleDot,
+  Clock3,
+  Command,
+  GitBranch,
+  LayoutDashboard,
   Pause,
   Play,
+  Plus,
   Search,
-  Activity
+  Settings2,
+  ShieldCheck,
+  Sparkles,
+  TerminalSquare,
+  Zap,
 } from "lucide-react";
 
 const SERVER_URL = "http://localhost:8000";
 
-// --- Types ---
 type TraceEvent = {
   trace_id: string;
   parent_span_id: string | null;
@@ -35,7 +45,13 @@ type TraceEvent = {
 
 type TreeNode = TraceEvent & { children: TreeNode[] };
 
-// --- Main Page ---
+const navItems = [
+  { label: "Overview", icon: LayoutDashboard, active: true },
+  { label: "Live traces", icon: Activity },
+  { label: "Interventions", icon: ShieldCheck },
+  { label: "Agents", icon: Sparkles },
+];
+
 export default function SentinelDashboard() {
   const [traces, setTraces] = useState<TraceEvent[]>([]);
   const [loading, setLoading] = useState(true);
@@ -45,205 +61,75 @@ export default function SentinelDashboard() {
   const fetchTraces = async () => {
     try {
       const res = await fetch(`${SERVER_URL}/api/traces`);
-      if (res.ok) {
-        const data = await res.json();
-        setTraces(data.traces);
-      }
-    } catch (e) {
-      console.error("Error fetching traces:", e);
+      if (res.ok) setTraces((await res.json()).traces);
+    } catch (error) {
+      console.error("Error fetching traces:", error);
     } finally {
       setLoading(false);
     }
   };
 
-  useEffect(() => {
-    fetchTraces();
-  }, []);
-
+  useEffect(() => { fetchTraces(); }, []);
   useEffect(() => {
     if (isPaused) return;
     const interval = setInterval(fetchTraces, 2000);
     return () => clearInterval(interval);
   }, [isPaused]);
 
-  // Build the DAG / Tree from flat trace list
-  const buildTree = (events: TraceEvent[]): TreeNode[] => {
-    const nodeMap = new Map<string, TreeNode>();
-    const roots: TreeNode[] = [];
-
-    events.forEach(ev => {
-      nodeMap.set(ev.span_id, { ...ev, children: [] });
-    });
-
-    nodeMap.forEach(node => {
-      if (node.parent_span_id && nodeMap.has(node.parent_span_id)) {
-        nodeMap.get(node.parent_span_id)!.children.push(node);
-      } else {
-        roots.push(node);
-      }
-    });
-
-    return roots;
-  };
-
   const filteredTraces = useMemo(() => {
-    if (!searchQuery) return traces;
     const query = searchQuery.toLowerCase();
-    return traces.filter(t => 
-      t.name.toLowerCase().includes(query) || 
-      t.status.toLowerCase().includes(query) ||
-      t.event_type.toLowerCase().includes(query)
+    if (!query) return traces;
+    return traces.filter((trace) =>
+      [trace.name, trace.status, trace.event_type, trace.agent_id].some((value) => value?.toLowerCase().includes(query)),
     );
   }, [traces, searchQuery]);
 
-  const tree = buildTree(filteredTraces);
-  
-  // Calculate metrics
-  const totalEvents = traces.length;
-  const successEvents = traces.filter(t => t.status === "success").length;
-  const errorEvents = traces.filter(t => t.status === "error").length;
-  const successRate = totalEvents > 0 ? ((successEvents / totalEvents) * 100).toFixed(1) : "0";
-  
-  const pausedActions = traces.filter(t => t.status === "paused");
+  const tree = useMemo(() => buildTree(filteredTraces), [filteredTraces]);
+  const successEvents = traces.filter((trace) => trace.status === "success").length;
+  const errorEvents = traces.filter((trace) => trace.status === "error").length;
+  const pausedActions = traces.filter((trace) => trace.status === "paused");
+  const successRate = traces.length ? ((successEvents / traces.length) * 100).toFixed(1) : "0.0";
 
   return (
-    <div className="min-h-screen bg-black text-slate-200 font-sans p-6 selection:bg-orange-900/50 relative overflow-hidden">
-      
-      {/* --- Ambient Black Hole Glow Background --- */}
-      <div className="fixed top-[0%] left-[-10%] w-[120%] h-[120%] pointer-events-none overflow-hidden z-0 flex items-center justify-center">
-        {/* Accretion disk core glow */}
-        <div className="absolute w-[900px] h-[300px] bg-orange-600/20 rounded-[100%] blur-[120px] transform -rotate-12" />
-        <div className="absolute w-[700px] h-[150px] bg-amber-400/10 rounded-[100%] blur-[80px] transform -rotate-12" />
-        <div className="absolute w-[1200px] h-[500px] border-[2px] border-orange-500/10 rounded-[100%] blur-[8px] transform -rotate-12 shadow-[0_0_120px_rgba(249,115,22,0.1)]" />
-        {/* The Black Hole (Event Horizon) */}
-        <div className="absolute w-[450px] h-[450px] bg-black rounded-full shadow-[inset_0_0_80px_rgba(0,0,0,1),_0_0_60px_rgba(251,146,60,0.3)] transform -translate-y-8" />
+    <div className="min-h-screen bg-[#0a0912] text-[#f3efff] selection:bg-violet-500/30">
+      <div className="pointer-events-none fixed inset-0 overflow-hidden">
+        <div className="absolute -left-48 -top-44 size-[620px] rounded-full bg-violet-700/15 blur-[140px]" />
+        <div className="absolute right-[-14%] top-[38%] size-[520px] rounded-full bg-fuchsia-700/10 blur-[160px]" />
+        <div className="dashboard-grid absolute inset-0 opacity-40" />
       </div>
 
-      <div className="relative z-10 max-w-7xl mx-auto flex flex-col min-h-[90vh]">
-        {/* Header */}
-        <header className="flex items-center justify-between py-8 mb-4 border-b border-white/5">
-          <div className="flex items-center gap-4">
-            <h1 className="text-4xl font-light tracking-tighter text-white">
-              Sentinel<span className="font-bold text-orange-400">AI</span>
-            </h1>
+      <div className="relative mx-auto flex min-h-screen max-w-[1600px]">
+        <aside className="hidden w-[248px] shrink-0 flex-col border-r border-white/[0.07] px-5 py-7 lg:flex">
+          <div className="flex items-center gap-3 px-3">
+            <div className="brand-mark"><span /></div>
+            <div><p className="text-[15px] font-semibold tracking-tight">Sentinel<span className="text-violet-300">AI</span></p><p className="mt-0.5 text-[10px] uppercase tracking-[0.2em] text-white/35">Control room</p></div>
           </div>
-          <div className="flex gap-6 items-center">
-             <div className="relative">
-                <Search className="w-4 h-4 absolute left-3 top-1/2 transform -translate-y-1/2 text-slate-500" />
-                <input 
-                  type="text" 
-                  placeholder="Search traces..." 
-                  value={searchQuery}
-                  onChange={(e) => setSearchQuery(e.target.value)}
-                  className="bg-white/5 border border-white/10 rounded-full pl-10 pr-4 py-2 text-sm focus:outline-none focus:border-orange-500/50 focus:ring-1 focus:ring-orange-500/50 text-white placeholder-slate-500 transition-all w-64"
-                />
-             </div>
-             
-             <button 
-               onClick={() => setIsPaused(!isPaused)}
-               className={`flex items-center gap-2 px-4 py-2 rounded-full border text-sm transition-all ${isPaused ? 'bg-orange-500/10 border-orange-500/30 text-orange-400' : 'bg-white/5 border-white/10 hover:bg-white/10 text-slate-300'}`}
-             >
-               {isPaused ? <Play className="w-4 h-4" /> : <Pause className="w-4 h-4" />}
-               {isPaused ? "Live Paused" : "Live Active"}
-             </button>
-          </div>
-        </header>
+          <button className="mt-10 flex items-center gap-3 rounded-xl border border-violet-400/20 bg-violet-500/10 px-3.5 py-3 text-left text-sm text-violet-100 transition hover:bg-violet-500/15"><Plus data-icon="inline-start" className="size-4" />New monitor</button>
+          <p className="mb-3 mt-9 px-3 text-[10px] font-semibold uppercase tracking-[0.2em] text-white/30">Workspace</p>
+          <nav className="flex flex-col gap-1">
+            {navItems.map((item) => <button key={item.label} className={`sidebar-link ${item.active ? "sidebar-link-active" : ""}`}><item.icon className="size-[17px]" />{item.label}{item.label === "Interventions" && pausedActions.length > 0 ? <span className="ml-auto rounded-full bg-violet-400 px-1.5 py-0.5 text-[10px] font-bold text-[#171021]">{pausedActions.length}</span> : null}</button>)}
+          </nav>
+          <p className="mb-3 mt-9 px-3 text-[10px] font-semibold uppercase tracking-[0.2em] text-white/30">System</p>
+          <nav className="flex flex-col gap-1"><button className="sidebar-link"><GitBranch className="size-[17px]" />Activity log</button><button className="sidebar-link"><Settings2 className="size-[17px]" />Settings</button></nav>
+          <div className="mt-auto rounded-2xl border border-white/[0.08] bg-white/[0.035] p-4"><div className="mb-3 flex items-center justify-between"><span className="text-xs font-medium text-white/70">API health</span><span className="flex items-center gap-1.5 text-[10px] text-emerald-300"><span className="size-1.5 rounded-full bg-emerald-300" />Operational</span></div><div className="h-1 rounded-full bg-white/10"><div className="h-full w-[94%] rounded-full bg-gradient-to-r from-violet-500 to-fuchsia-400" /></div><p className="mt-2 text-[10px] text-white/35">99.98% uptime this month</p></div>
+        </aside>
 
-        {/* Hero Section */}
-        <div className="py-12 max-w-2xl mb-8">
-           <h2 className="text-6xl font-medium tracking-tight text-white mb-4 leading-tight">
-             Intelligence <br/> Under Gravity
-           </h2>
-           <p className="text-slate-400 text-lg">
-             Monitoring agent executions at the event horizon. Complete visibility, immutable traces.
-           </p>
-        </div>
+        <main className="min-w-0 flex-1 px-5 py-6 sm:px-8 lg:px-10 lg:py-8">
+          <header className="flex items-center justify-between gap-4"><div className="flex items-center gap-3 lg:hidden"><div className="brand-mark"><span /></div><span className="font-semibold">Sentinel<span className="text-violet-300">AI</span></span></div><div className="hidden items-center gap-2 text-xs text-white/35 sm:flex"><span>Workspace</span><ChevronRight className="size-3" /><span className="text-white/65">Overview</span></div><div className="ml-auto flex items-center gap-3"><button className="icon-button"><Bell className="size-4" /></button><div className="hidden h-5 w-px bg-white/10 sm:block" /><div className="flex items-center gap-2"><div className="avatar">JD</div><span className="hidden text-sm text-white/70 sm:block">Jordan Davis</span><ChevronDown className="hidden size-3.5 text-white/35 sm:block" /></div></div></header>
 
-        <main className="grid grid-cols-1 lg:grid-cols-12 gap-8 flex-1">
-          {/* Left Column: Alerts & Metrics */}
-          <div className="lg:col-span-4 space-y-8">
-            <section className="bg-black/60 backdrop-blur-xl border border-white/10 rounded-3xl p-6 shadow-2xl relative overflow-hidden group transition-all hover:border-orange-500/30">
-              <div className="absolute top-0 left-0 w-full h-[2px] bg-gradient-to-r from-orange-500/0 via-orange-500 to-orange-500/0 opacity-50" />
-              
-              <h2 className="text-xl font-light mb-6 flex items-center gap-3 text-white">
-                <ShieldAlert className="w-5 h-5 text-orange-500" />
-                Pending Interventions
-                {pausedActions.length > 0 && (
-                  <span className="ml-auto bg-orange-500 text-black text-xs px-3 py-1 rounded-full font-bold">
-                    {pausedActions.length} Action{pausedActions.length > 1 ? 's' : ''}
-                  </span>
-                )}
-              </h2>
+          <section className="mt-12 flex flex-col justify-between gap-6 md:flex-row md:items-end"><div><div className="mb-4 inline-flex items-center gap-2 rounded-full border border-violet-400/20 bg-violet-500/10 px-3 py-1.5 text-[10px] font-semibold uppercase tracking-[0.2em] text-violet-200"><CircleDot className="size-3 animate-pulse" />Live monitoring</div><h1 className="max-w-2xl text-4xl font-light tracking-[-0.05em] text-white sm:text-5xl">Good evening, Jordan<span className="text-violet-300">.</span><br /><span className="text-white/45">Your agents are in motion.</span></h1><p className="mt-5 max-w-xl text-sm leading-6 text-white/45">A clear view into every decision, tool call, and intervention across your agent workspace.</p></div><div className="flex items-center gap-3"><div className="search-field"><Search className="size-4 text-white/30" /><input aria-label="Search traces" placeholder="Search traces" value={searchQuery} onChange={(event) => setSearchQuery(event.target.value)} /><kbd><Command className="size-3" />K</kbd></div><button aria-label="Toggle live updates" onClick={() => setIsPaused(!isPaused)} className={`live-toggle ${isPaused ? "paused" : ""}`}>{isPaused ? <Play className="size-3.5" /> : <Pause className="size-3.5" />}{isPaused ? "Paused" : "Live"}</button></div></section>
 
-              {pausedActions.length === 0 ? (
-                <div className="flex flex-col items-center justify-center py-12 text-slate-500">
-                  <CheckCircle2 className="w-10 h-10 mb-3 opacity-20" />
-                  <p className="text-sm tracking-wide">All systems nominal.</p>
-                </div>
-              ) : (
-                <div className="space-y-4">
-                  {pausedActions.map(action => (
-                    <InterventionCard key={action.span_id} action={action} onActionTaken={fetchTraces} />
-                  ))}
-                </div>
-              )}
-            </section>
+          <section className="mt-10 grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
+            <MetricCard label="Total executions" value={traces.length.toLocaleString()} change="+12.8%" icon={Zap} tone="violet" />
+            <MetricCard label="Success rate" value={`${successRate}%`} change="+2.4%" icon={CheckCircle2} tone="emerald" />
+            <MetricCard label="Active agents" value={tree.length.toString()} change="3 running now" icon={Activity} tone="blue" />
+            <MetricCard label="Needs attention" value={pausedActions.length.toString().padStart(2, "0")} change={`${errorEvents} errors today`} icon={AlertCircle} tone="amber" />
+          </section>
 
-            <section className="bg-black/60 backdrop-blur-xl border border-white/10 rounded-3xl p-6 shadow-2xl">
-               <h2 className="text-xl font-light mb-6 flex items-center gap-3 text-white">
-                <Activity className="w-5 h-5 text-amber-500" />
-                Telemetry Stats
-              </h2>
-              <div className="grid grid-cols-2 gap-4">
-                 <div className="bg-white/5 p-4 rounded-2xl border border-white/5">
-                    <p className="text-xs text-slate-500 mb-2 tracking-wider uppercase">Active Traces</p>
-                    <p className="text-3xl font-light text-white">{tree.length}</p>
-                 </div>
-                 <div className="bg-white/5 p-4 rounded-2xl border border-white/5">
-                    <p className="text-xs text-slate-500 mb-2 tracking-wider uppercase">Total Events</p>
-                    <p className="text-3xl font-light text-white">{traces.length}</p>
-                 </div>
-                 <div className="bg-white/5 p-4 rounded-2xl border border-white/5">
-                    <p className="text-xs text-slate-500 mb-2 tracking-wider uppercase">Success Rate</p>
-                    <p className="text-3xl font-light text-emerald-400">{successRate}%</p>
-                 </div>
-                 <div className="bg-white/5 p-4 rounded-2xl border border-white/5">
-                    <p className="text-xs text-slate-500 mb-2 tracking-wider uppercase">Error Count</p>
-                    <p className="text-3xl font-light text-red-400">{errorEvents}</p>
-                 </div>
-              </div>
-            </section>
-          </div>
+          <div className="mt-6 grid gap-6 xl:grid-cols-[minmax(0,1fr)_360px]">
+            <section className="panel min-h-[580px] overflow-hidden"><div className="flex flex-wrap items-start justify-between gap-4 border-b border-white/[0.07] px-6 py-5"><div><div className="flex items-center gap-2.5"><div className="section-icon"><TerminalSquare className="size-4" /></div><div><h2 className="text-base font-medium text-white/90">Execution traces</h2><p className="mt-1 text-xs text-white/35">Real-time agent activity and decision paths</p></div></div></div><button className="subtle-button">View all <ArrowUpRight className="size-3.5" /></button></div><div className="px-3 py-3 sm:px-5">{loading ? <div className="flex min-h-[440px] items-center justify-center"><div className="loader" /></div> : tree.length === 0 ? <EmptyState /> : tree.map((node) => <TraceNode key={node.span_id} node={node} />)}</div></section>
 
-          {/* Right Column: Trace DAG View */}
-          <div className="lg:col-span-8">
-            <section className="bg-black/60 backdrop-blur-xl border border-white/10 rounded-3xl p-8 shadow-2xl h-full min-h-[600px] flex flex-col">
-              <div className="flex justify-between items-end mb-8 border-b border-white/10 pb-6">
-                 <h2 className="text-xl font-light flex items-center gap-3 text-white">
-                   <Terminal className="w-5 h-5 text-orange-400" />
-                   Execution Trace
-                 </h2>
-                 <p className="text-sm text-slate-500">Real-time DAG visualization</p>
-              </div>
-              
-              {loading ? (
-                <div className="flex-1 flex justify-center items-center">
-                  <div className="w-8 h-8 border-2 border-orange-500 border-t-transparent rounded-full animate-spin" />
-                </div>
-              ) : tree.length === 0 ? (
-                 <div className="flex-1 flex flex-col items-center justify-center py-20 text-slate-600">
-                   <BrainCircuit className="w-12 h-12 mb-4 opacity-20" />
-                   <p>No telemetry found.</p>
-                   <p className="text-sm mt-2 opacity-50">Initiate an agent task to begin tracking.</p>
-                 </div>
-              ) : (
-                <div className="space-y-4 overflow-y-auto flex-1 pr-2">
-                  {tree.map(node => (
-                    <TraceNode key={node.span_id} node={node} />
-                  ))}
-                </div>
-              )}
-            </section>
+            <aside className="flex flex-col gap-6"><section className="panel p-5"><div className="mb-5 flex items-center justify-between"><div><h2 className="text-base font-medium text-white/90">Interventions</h2><p className="mt-1 text-xs text-white/35">Review flagged actions</p></div><ShieldCheck className="size-5 text-violet-300" /></div>{pausedActions.length === 0 ? <div className="flex flex-col items-center rounded-xl border border-dashed border-white/10 px-4 py-10 text-center"><CheckCircle2 className="mb-3 size-7 text-emerald-300/70" /><p className="text-sm text-white/65">All clear for now</p><p className="mt-1 text-xs text-white/30">No actions need your attention.</p></div> : <div className="flex flex-col gap-3">{pausedActions.slice(0, 3).map((action) => <InterventionCard key={action.span_id} action={action} onActionTaken={fetchTraces} />)}</div>}</section><section className="panel p-5"><div className="mb-5 flex items-center justify-between"><div><h2 className="text-base font-medium text-white/90">Activity pulse</h2><p className="mt-1 text-xs text-white/35">Executions over the last 24h</p></div><Clock3 className="size-4 text-white/35" /></div><div className="flex h-28 items-end gap-1.5">{[38,52,45,63,57,76,61,84,70,91,68,77,96,73,88,64,79,58,72,46,62,51,67,43].map((height, index) => <div key={index} className="pulse-bar" style={{ height: `${height}%`, opacity: index > 19 ? 1 : 0.55 }} />)}</div><div className="mt-3 flex justify-between text-[10px] text-white/25"><span>12am</span><span>6am</span><span>12pm</span><span>Now</span></div></section></aside>
           </div>
         </main>
       </div>
@@ -251,153 +137,23 @@ export default function SentinelDashboard() {
   );
 }
 
-// --- Components ---
-
-function InterventionCard({ action, onActionTaken }: { action: TraceEvent, onActionTaken: () => void }) {
-  const [loading, setLoading] = useState(false);
-
-  const handleDecision = async (decision: "approve" | "reject") => {
-    setLoading(true);
-    try {
-      await fetch(`${SERVER_URL}/api/intervention/${action.span_id}`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ action: decision })
-      });
-      onActionTaken();
-    } catch (e) {
-      console.error(e);
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  const reason = action.metadata?.pause_reason || action.metadata?.reason || "High Risk Action";
-
-  return (
-    <div className="bg-orange-950/20 border border-orange-500/30 rounded-2xl p-5 shadow-[0_0_30px_rgba(249,115,22,0.05)] relative overflow-hidden group hover:border-orange-500/60 transition-colors">
-      <div className="absolute -right-4 -top-4 p-4 opacity-[0.03] group-hover:opacity-10 transition-opacity">
-        <ShieldAlert className="w-32 h-32 text-orange-500" />
-      </div>
-      
-      <div className="relative z-10">
-        <div className="mb-4">
-          <h3 className="text-orange-400 font-medium text-lg flex items-center gap-2">
-            <span className="w-2 h-2 rounded-full bg-orange-500 animate-pulse"></span>
-            Action Blocked
-          </h3>
-          <p className="text-sm text-slate-400 mt-1">{reason}</p>
-        </div>
-        
-        <div className="mb-5 bg-black/50 p-4 rounded-xl border border-white/5 font-mono text-xs overflow-hidden">
-          <p className="text-slate-400 mb-2">Target <span className="text-white ml-2">{action.name}</span></p>
-          <p className="text-slate-400">Confidence <span className="text-orange-400 ml-2">{(action.confidence * 100).toFixed(0)}%</span></p>
-        </div>
-
-        <div className="flex gap-3">
-          <button 
-            onClick={() => handleDecision("reject")}
-            disabled={loading}
-            className="flex-1 bg-white/5 hover:bg-white/10 text-white border border-white/10 py-2.5 rounded-xl text-sm font-medium transition-all"
-          >
-            Reject
-          </button>
-          <button 
-            onClick={() => handleDecision("approve")}
-            disabled={loading}
-            className="flex-1 bg-orange-500 hover:bg-orange-400 text-black shadow-[0_0_15px_rgba(249,115,22,0.4)] hover:shadow-[0_0_25px_rgba(249,115,22,0.6)] py-2.5 rounded-xl text-sm font-bold transition-all"
-          >
-            Approve
-          </button>
-        </div>
-      </div>
-    </div>
-  );
+function MetricCard({ label, value, change, icon: Icon, tone }: { label: string; value: string; change: string; icon: any; tone: string }) {
+  return <div className="metric-card"><div className={`metric-icon ${tone}`}><Icon className="size-4" /></div><div className="mt-5 flex items-end justify-between gap-3"><div><p className="text-[11px] uppercase tracking-[0.16em] text-white/35">{label}</p><p className="mt-2 text-3xl font-light tracking-tight text-white">{value}</p></div><span className={`text-[10px] ${tone === "amber" ? "text-amber-200/70" : "text-emerald-300/70"}`}>{change}</span></div></div>;
 }
 
-function TraceNode({ node, depth = 0 }: { node: TreeNode, depth?: number }) {
+function InterventionCard({ action, onActionTaken }: { action: TraceEvent; onActionTaken: () => void }) {
+  const [busy, setBusy] = useState(false);
+  const decide = async (decision: "approve" | "reject") => { setBusy(true); try { await fetch(`${SERVER_URL}/api/intervention/${action.span_id}`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ action: decision }) }); onActionTaken(); } finally { setBusy(false); } };
+  const reason = action.metadata?.pause_reason || action.metadata?.reason || "High-risk action detected";
+  return <div className="intervention-card"><div className="flex items-start justify-between gap-3"><div><p className="flex items-center gap-2 text-xs font-medium text-amber-200"><span className="size-1.5 animate-pulse rounded-full bg-amber-300" />Action paused</p><p className="mt-2 text-sm leading-5 text-white/65">{reason}</p></div><AlertCircle className="size-4 shrink-0 text-amber-300/70" /></div><div className="mt-4 rounded-lg border border-white/[0.07] bg-black/20 px-3 py-2.5"><p className="truncate font-mono text-[11px] text-white/55">{action.name}</p><p className="mt-1 text-[10px] text-white/30">Confidence <span className="text-violet-200">{(action.confidence * 100).toFixed(0)}%</span></p></div><div className="mt-3 grid grid-cols-2 gap-2"><button disabled={busy} onClick={() => decide("reject")} className="action-button">Dismiss</button><button disabled={busy} onClick={() => decide("approve")} className="action-button action-button-primary"><Check className="size-3" />Approve</button></div></div>;
+}
+
+function TraceNode({ node, depth = 0 }: { node: TreeNode; depth?: number }) {
   const [expanded, setExpanded] = useState(true);
-  
   const hasChildren = node.children.length > 0;
-  
-  const statusColors: Record<string, string> = {
-    success: "text-emerald-400 bg-emerald-400/10 border-emerald-400/20",
-    error: "text-red-400 bg-red-400/10 border-red-400/20",
-    paused: "text-orange-400 bg-orange-400/10 border-orange-400/20 shadow-[0_0_10px_rgba(249,115,22,0.2)]",
-    running: "text-amber-400 bg-amber-400/10 border-amber-400/20"
-  };
-
-  const statusColor = statusColors[node.status] || "text-slate-400 bg-white/5 border-white/10";
-
-  return (
-    <div className="relative" style={{ marginLeft: depth > 0 ? "1.5rem" : "0" }}>
-      {/* Tree connecting lines */}
-      {depth > 0 && (
-        <div className="absolute -left-5 top-5 w-5 h-[1px] bg-white/10" />
-      )}
-      {depth > 0 && (
-        <div className="absolute -left-5 -top-6 bottom-auto h-11 w-[1px] bg-white/10" />
-      )}
-
-      <div className="mb-4 bg-black/40 border border-white/5 rounded-2xl overflow-hidden transition-all hover:border-white/20 hover:bg-black/60 group">
-        <div 
-          className={`flex items-center gap-4 p-4 cursor-pointer select-none`}
-          onClick={() => hasChildren && setExpanded(!expanded)}
-        >
-          {/* Collapse icon */}
-          <div className="w-5 flex justify-center text-slate-500 group-hover:text-white transition-colors">
-            {hasChildren ? (
-              expanded ? <ChevronDown className="w-4 h-4" /> : <ChevronRight className="w-4 h-4" />
-            ) : (
-              <div className="w-1.5 h-1.5 rounded-full bg-slate-700" />
-            )}
-          </div>
-          
-          <div className="flex-1 min-w-0 flex items-center gap-4">
-             <span className="font-medium text-[15px] text-slate-200 truncate">{node.name}</span>
-             <span className="text-[10px] tracking-widest uppercase text-slate-500 border border-white/10 px-2 py-0.5 rounded-md">{node.event_type}</span>
-          </div>
-
-          <div className={`px-3 py-1 rounded-full border text-[11px] font-medium flex items-center gap-2 tracking-wide ${statusColor}`}>
-             {node.status === "running" && <div className="w-1.5 h-1.5 rounded-full bg-amber-400 animate-pulse" />}
-             {node.status === "paused" && <AlertCircle className="w-3 h-3" />}
-             {node.status}
-          </div>
-        </div>
-
-        {/* Node Details (Input/Output) */}
-        {expanded && (
-          <div className="px-5 pb-5 pt-1 border-t border-white/5 font-mono text-xs space-y-4">
-             {node.input_data && (
-                <div>
-                   <span className="text-slate-500 mb-2 block uppercase tracking-wider text-[10px]">Input</span>
-                   <div className="bg-white/5 p-3 rounded-xl border border-white/5 text-slate-300 overflow-x-auto whitespace-pre-wrap">
-                     {node.input_data}
-                   </div>
-                </div>
-             )}
-             {node.output_data && (
-                <div>
-                   <span className="text-slate-500 mb-2 block uppercase tracking-wider text-[10px]">Output</span>
-                   <div className={`bg-white/5 p-3 rounded-xl border border-white/5 overflow-x-auto whitespace-pre-wrap ${node.status === 'error' ? 'text-red-400' : 'text-slate-300'}`}>
-                     {node.output_data}
-                   </div>
-                </div>
-             )}
-          </div>
-        )}
-      </div>
-
-      {/* Children */}
-      {expanded && hasChildren && (
-        <div className="relative mt-2">
-           <div className="absolute left-1 top-0 bottom-6 w-[1px] bg-white/10" />
-           {node.children.map(child => (
-             <TraceNode key={child.span_id} node={child} depth={depth + 1} />
-           ))}
-        </div>
-      )}
-    </div>
-  );
+  return <div className={depth ? "trace-child" : ""}><div className="trace-row" onClick={() => hasChildren && setExpanded(!expanded)}><div className="flex size-7 shrink-0 items-center justify-center rounded-lg bg-white/[0.04] text-white/35">{hasChildren ? (expanded ? <ChevronDown className="size-3.5" /> : <ChevronRight className="size-3.5" />) : <CircleDot className="size-3" />}</div><div className="min-w-0 flex-1"><div className="flex items-center gap-2"><span className="truncate text-sm font-medium text-white/80">{node.name}</span><span className="hidden rounded border border-white/[0.08] px-1.5 py-0.5 text-[9px] uppercase tracking-wider text-white/30 sm:inline">{node.event_type}</span></div><p className="mt-1 truncate font-mono text-[10px] text-white/25">{node.agent_id || "sentinel-agent"} · {new Date(node.timestamp * 1000 || Date.now()).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}</p></div><StatusBadge status={node.status} /><ArrowUpRight className="hidden size-3.5 text-white/20 sm:block" /></div>{expanded && (node.input_data || node.output_data) && <div className="trace-details">{node.input_data && <div><span>Input</span><p>{node.input_data}</p></div>}{node.output_data && <div><span>Output</span><p className={node.status === "error" ? "text-red-300/80" : ""}>{node.output_data}</p></div>}</div>}{expanded && hasChildren && <div className="ml-4 border-l border-violet-300/10 pl-3">{node.children.map((child) => <TraceNode key={child.span_id} node={child} depth={depth + 1} />)}</div>}</div>;
 }
 
+function StatusBadge({ status }: { status: string }) { const styles: Record<string, string> = { success: "status-success", error: "status-error", paused: "status-paused", running: "status-running" }; return <span className={`status-badge ${styles[status] || ""}`}>{status === "running" && <span className="size-1.5 animate-pulse rounded-full bg-current" />}{status}</span>; }
+function EmptyState() { return <div className="flex min-h-[440px] flex-col items-center justify-center text-center"><div className="mb-4 rounded-2xl border border-violet-300/10 bg-violet-400/[0.06] p-4"><TerminalSquare className="size-8 text-violet-200/50" /></div><p className="text-sm text-white/60">No telemetry found</p><p className="mt-2 max-w-xs text-xs leading-5 text-white/30">Initiate an agent task to see its execution path appear here.</p></div>; }
+function buildTree(events: TraceEvent[]): TreeNode[] { const nodes = new Map<string, TreeNode>(); const roots: TreeNode[] = []; events.forEach((event) => nodes.set(event.span_id, { ...event, children: [] })); nodes.forEach((node) => { if (node.parent_span_id && nodes.has(node.parent_span_id)) nodes.get(node.parent_span_id)!.children.push(node); else roots.push(node); }); return roots; }
