@@ -11,7 +11,7 @@ app = FastAPI(title="SentinelAI Monitoring Engine")
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["*"],
-    allow_credentials=True,
+    allow_credentials=False,
     allow_methods=["*"],
     allow_headers=["*"],
 )
@@ -79,6 +79,17 @@ async def get_traces():
         r['metadata'] = json.loads(r['metadata']) if r['metadata'] else {}
     
     return {"traces": rows}
+
+@app.post("/api/demo")
+async def run_demo():
+    """ Endpoint to trigger the hackathon_demo.py script from the dashboard """
+    import subprocess
+    try:
+        # Run it in the background so it doesn't block the API response
+        subprocess.Popen(["python", "agent/hackathon_demo.py"], cwd="/app")
+        return {"success": True, "message": "Demo script started!"}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
 
 if __name__ == "__main__":
     uvicorn.run("server.main:app", host="0.0.0.0", port=8000, reload=True)

@@ -1,0 +1,29 @@
+version: "3.9"
+
+services:
+  server:
+    image: python:3.11-slim
+    working_dir: /app
+    volumes:
+      - .:/app
+    environment:
+      - GEMINI_API_KEY=${GEMINI_API_KEY}
+    ports:
+      - "8000:8000"
+    command: >
+      bash -c "pip install -r requirements.txt && python -m server.main"
+    # Ensure that server starts only after the db is initialized, but here we use sqlite so it's auto-created.
+
+  dashboard:
+    image: node:20-alpine
+    working_dir: /app
+    volumes:
+      - ./dashboard:/app
+    ports:
+      - "3000:3000"
+    environment:
+      - NEXT_PUBLIC_API_URL=http://localhost:8000
+    command: >
+      sh -c "npm install && npm run dev"
+    depends_on:
+      - server

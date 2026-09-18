@@ -62,7 +62,7 @@ export default function SentinelDashboard() {
 
   useEffect(() => {
     if (isPaused) return;
-    const interval = setInterval(fetchTraces, 2000);
+    const interval = setInterval(fetchTraces, 1000);
     return () => clearInterval(interval);
   }, [isPaused]);
 
@@ -107,16 +107,23 @@ export default function SentinelDashboard() {
   const pausedActions = traces.filter(t => t.status === "paused");
 
   return (
-    <div className="min-h-screen bg-black text-slate-200 font-sans p-6 selection:bg-orange-900/50 relative overflow-hidden">
+    <div className="min-h-screen bg-black text-slate-200 font-sans p-6 selection:bg-orange-900/50 relative overflow-hidden text-base">
       
+      {/* --- Global Threat Overlay --- */}
+      {pausedActions.length > 0 && (
+        <div className="fixed inset-0 pointer-events-none z-50 shadow-[inset_0_0_150px_rgba(239,68,68,0.2)] animate-pulse" />
+      )}
+
       {/* --- Ambient Black Hole Glow Background --- */}
       <div className="fixed top-[0%] left-[-10%] w-[120%] h-[120%] pointer-events-none overflow-hidden z-0 flex items-center justify-center">
         {/* Accretion disk core glow */}
-        <div className="absolute w-[900px] h-[300px] bg-orange-600/20 rounded-[100%] blur-[120px] transform -rotate-12" />
-        <div className="absolute w-[700px] h-[150px] bg-amber-400/10 rounded-[100%] blur-[80px] transform -rotate-12" />
-        <div className="absolute w-[1200px] h-[500px] border-[2px] border-orange-500/10 rounded-[100%] blur-[8px] transform -rotate-12 shadow-[0_0_120px_rgba(249,115,22,0.1)]" />
+        <div className="absolute w-[900px] h-[300px] bg-orange-600/30 rounded-[100%] blur-[100px] transform -rotate-12 animate-pulse" />
+        <div className="absolute w-[1000px] h-[250px] bg-amber-500/10 rounded-[100%] blur-[60px] transform -rotate-12 animate-pulse" style={{ animationDuration: '3s' }} />
+        <div className="absolute w-[1200px] h-[500px] border-[3px] border-orange-500/20 rounded-[100%] blur-[12px] transform -rotate-12 shadow-[0_0_150px_rgba(249,115,22,0.2)]" />
+        {/* Deep space jets */}
+        <div className="absolute w-[100px] h-[1000px] bg-orange-400/5 blur-[80px] transform rotate-12" />
         {/* The Black Hole (Event Horizon) */}
-        <div className="absolute w-[450px] h-[450px] bg-black rounded-full shadow-[inset_0_0_80px_rgba(0,0,0,1),_0_0_60px_rgba(251,146,60,0.3)] transform -translate-y-8" />
+        <div className="absolute w-[450px] h-[450px] bg-black rounded-full shadow-[inset_0_0_100px_rgba(0,0,0,1),_0_0_80px_rgba(251,146,60,0.5)] transform -translate-y-8" />
       </div>
 
       <div className="relative z-10 max-w-7xl mx-auto flex flex-col min-h-[90vh]">
@@ -140,6 +147,20 @@ export default function SentinelDashboard() {
              </div>
              
              <button 
+               onClick={async () => {
+                 try {
+                   await fetch(`${SERVER_URL}/api/demo`, { method: "POST" });
+                 } catch (e) {
+                   console.error("Failed to start demo:", e);
+                 }
+               }}
+               className="bg-orange-500 hover:bg-orange-400 text-black px-4 py-2 rounded-full text-sm font-bold shadow-[0_0_15px_rgba(249,115,22,0.4)] hover:shadow-[0_0_25px_rgba(249,115,22,0.6)] transition-all flex items-center gap-2"
+             >
+               <Play className="w-4 h-4 fill-current" />
+               Run Demo
+             </button>
+
+             <button 
                onClick={() => setIsPaused(!isPaused)}
                className={`flex items-center gap-2 px-4 py-2 rounded-full border text-sm transition-all ${isPaused ? 'bg-orange-500/10 border-orange-500/30 text-orange-400' : 'bg-white/5 border-white/10 hover:bg-white/10 text-slate-300'}`}
              >
@@ -151,10 +172,10 @@ export default function SentinelDashboard() {
 
         {/* Hero Section */}
         <div className="py-12 max-w-2xl mb-8">
-           <h2 className="text-6xl font-medium tracking-tight text-white mb-4 leading-tight">
+           <h2 className="text-7xl font-medium tracking-tight text-white mb-4 leading-tight">
              Intelligence <br/> Under Gravity
            </h2>
-           <p className="text-slate-400 text-lg">
+           <p className="text-slate-400 text-xl font-light tracking-wide">
              Monitoring agent executions at the event horizon. Complete visibility, immutable traces.
            </p>
         </div>
@@ -219,9 +240,16 @@ export default function SentinelDashboard() {
           <div className="lg:col-span-8">
             <section className="bg-black/60 backdrop-blur-xl border border-white/10 rounded-3xl p-8 shadow-2xl h-full min-h-[600px] flex flex-col">
               <div className="flex justify-between items-end mb-8 border-b border-white/10 pb-6">
-                 <h2 className="text-xl font-light flex items-center gap-3 text-white">
-                   <Terminal className="w-5 h-5 text-orange-400" />
+                 <h2 className="text-2xl font-light flex items-center gap-3 text-white">
+                   <Terminal className="w-6 h-6 text-orange-400" />
                    Execution Trace
+                   {traces.some(t => t.status === "running") && (
+                     <div className="ml-4 flex items-center gap-2 bg-amber-500/10 text-amber-400 border border-amber-500/30 px-3 py-1 rounded-full text-xs font-bold tracking-widest uppercase shadow-[0_0_15px_rgba(245,158,11,0.2)]">
+                       <span className="w-2 h-2 rounded-full bg-amber-500 animate-ping"></span>
+                       <span className="absolute w-2 h-2 rounded-full bg-amber-500"></span>
+                       Agent Thinking
+                     </div>
+                   )}
                  </h2>
                  <p className="text-sm text-slate-500">Real-time DAG visualization</p>
               </div>
@@ -275,16 +303,17 @@ function InterventionCard({ action, onActionTaken }: { action: TraceEvent, onAct
   const reason = action.metadata?.pause_reason || action.metadata?.reason || "High Risk Action";
 
   return (
-    <div className="bg-orange-950/20 border border-orange-500/30 rounded-2xl p-5 shadow-[0_0_30px_rgba(249,115,22,0.05)] relative overflow-hidden group hover:border-orange-500/60 transition-colors">
-      <div className="absolute -right-4 -top-4 p-4 opacity-[0.03] group-hover:opacity-10 transition-opacity">
-        <ShieldAlert className="w-32 h-32 text-orange-500" />
+    <div className="bg-red-950/30 border border-red-500/50 rounded-2xl p-5 shadow-[0_0_40px_rgba(239,68,68,0.15)] relative overflow-hidden group hover:border-red-500/80 transition-colors animate-[pulse_2s_ease-in-out_infinite]">
+      <div className="absolute -right-4 -top-4 p-4 opacity-[0.05] group-hover:opacity-15 transition-opacity">
+        <ShieldAlert className="w-32 h-32 text-red-500" />
       </div>
       
       <div className="relative z-10">
         <div className="mb-4">
-          <h3 className="text-orange-400 font-medium text-lg flex items-center gap-2">
-            <span className="w-2 h-2 rounded-full bg-orange-500 animate-pulse"></span>
-            Action Blocked
+          <h3 className="text-red-400 font-medium text-xl flex items-center gap-2">
+            <span className="w-3 h-3 rounded-full bg-red-500 animate-ping"></span>
+            <span className="absolute w-2 h-2 rounded-full bg-red-500 ml-0.5"></span>
+            <span className="ml-1">THREAT BLOCKED</span>
           </h3>
           <p className="text-sm text-slate-400 mt-1">{reason}</p>
         </div>
@@ -359,7 +388,12 @@ function TraceNode({ node, depth = 0 }: { node: TreeNode, depth?: number }) {
           </div>
 
           <div className={`px-3 py-1 rounded-full border text-[11px] font-medium flex items-center gap-2 tracking-wide ${statusColor}`}>
-             {node.status === "running" && <div className="w-1.5 h-1.5 rounded-full bg-amber-400 animate-pulse" />}
+             {node.status === "running" && (
+                <div className="relative flex items-center justify-center mr-1">
+                  <span className="absolute w-2.5 h-2.5 rounded-full bg-amber-400 animate-ping"></span>
+                  <span className="relative w-1.5 h-1.5 rounded-full bg-amber-400"></span>
+                </div>
+             )}
              {node.status === "paused" && <AlertCircle className="w-3 h-3" />}
              {node.status}
           </div>
