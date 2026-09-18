@@ -100,24 +100,34 @@ class EvaluatorEngine:
         """
         event_type = event.get('event_type')
         name = event.get('name')
-        agent_id = event.get('agent_id')
+        agent_id = event.get('agent_id', 'unknown_agent')
         confidence = event.get('confidence', 1.0)
         input_data = event.get('input_data', '')
         
+        logs = [f"Intercepted {event_type} for '{name}' (Agent: {agent_id})"]
+        
         # 0. Regex Blocklist Check (Fast fail)
-        if input_data and self.blocklist_pattern.search(str(input_data)):
-            return {"action": "pause", "reason": "Regex Blocklist Triggered: Dangerous pattern detected."}
+        if input_data:
+            logs.append(f"Running regex blocklist heuristic...")
+            if self.blocklist_pattern.search(str(input_data)):
+                logs.append(f"❌ THREAT DETECTED: Malicious regex pattern matched.")
+                return {"action": "pause", "reason": "Regex Blocklist Triggered: Dangerous pattern detected.", "logs": logs}
+            logs.append(f"✅ Regex check passed.")
 
         # 0.5 Budget Check
         if event_type == 'tool_start':
+            logs.append(f"Checking agent budget limits...")
             current_spend = self.agent_budgets.get(agent_id, 0.0)
             if current_spend >= self.max_budget:
-                return {"action": "pause", "reason": f"Budget Exceeded: Spent ${current_spend:.2f} / ${self.max_budget:.2f} limit."}
+                logs.append(f"❌ THREAT DETECTED: Agent exceeded cost limits (${current_spend:.2f} > ${self.max_budget:.2f}).")
+                return {"action": "pause", "reason": f"Budget Exceeded: Spent ${current_spend:.2f} / ${self.max_budget:.2f} limit.", "logs": logs}
             self.agent_budgets[agent_id] = current_spend + self.cost_per_tool
+            logs.append(f"✅ Budget check passed (${current_spend + self.cost_per_tool:.2f} / ${self.max_budget:.2f} spent).")
 
         # 1. Uncertainty Handling Check
         if confidence < 0.4:
-            return {"action": "pause", "reason": "Low confidence score reported."}
+            logs.append(f"❌ THREAT DETECTED: Confidence score too low ({confidence}).")
+            return {"action": "pause", "reason": "Low confidence score reported.", "logs": logs}
             
         # 2. Heuristic Check: Loops
         if event_type == 'tool_start':
@@ -125,21 +135,28 @@ class EvaluatorEngine:
             history.append(name)
             self.tool_history[agent_id] = history[-5:]
             
+            logs.append("Checking execution loop heuristic...")
             if len(self.tool_history[agent_id]) >= 3 and len(set(self.tool_history[agent_id][-3:])) == 1:
-                return {"action": "pause", "reason": "Detected potential infinite loop (tool called 3x in a row)."}
+                logs.append("❌ THREAT DETECTED: Infinite loop behavior identified.")
+                return {"action": "pause", "reason": "Detected potential infinite loop (tool called 3x in a row).", "logs": logs}
+            logs.append("✅ Loop check passed.")
         
             # 3. LLM-as-a-Judge (Synchronous safety check before allowing execution)
             if input_data:
+                logs.append("Forwarding payload to asynchronous LLM Judge for semantic safety check...")
                 llm_eval = await self.llm_judge.evaluate_safety(name, input_data)
                 if not llm_eval["safe"]:
-                    return {"action": "pause", "reason": llm_eval["reason"]}
+                    logs.append(f"❌ THREAT DETECTED: LLM Judge blocked action. Reason: {llm_eval['reason']}")
+                    return {"action": "pause", "reason": llm_eval["reason"], "logs": logs}
+                logs.append(f"✅ LLM Judge approved action: {llm_eval['reason']}")
                     
         # 4. LLM-as-a-Judge (Async background evaluation of goal progression)
         if event_type == 'tool_end':
             # Fire and forget LLM evaluation
             asyncio.create_task(self._llm_evaluate_progress(event))
             
-        return {"action": "allow"}
+        logs.append("🟢 ACTION ALLOWED. No threats detected.")
+        return {"action": "allow", "logs": logs}
 
     async def _llm_evaluate_progress(self, event: Dict[str, Any]):
         """

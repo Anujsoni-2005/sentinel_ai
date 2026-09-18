@@ -17,6 +17,8 @@ app.add_middleware(
 )
 
 evaluator = EvaluatorEngine()
+firewall_logs_history = []
+current_threat_level = 0.0
 
 @app.on_event("startup")
 def startup_event():
@@ -24,10 +26,29 @@ def startup_event():
 
 @app.post("/api/telemetry")
 async def receive_telemetry(request: Request):
+    global firewall_logs_history, current_threat_level
     event = await request.json()
     
     # 1. Run Evaluator checks
     eval_result = await evaluator.evaluate_event(event)
+    
+    # Append logs
+    if "logs" in eval_result:
+        for log in eval_result["logs"]:
+            import datetime
+            ts = datetime.datetime.now().strftime("%H:%M:%S.%f")[:-3]
+            firewall_logs_history.append(f"[{ts}] {log}")
+        
+        # Keep last 100 logs
+        if len(firewall_logs_history) > 100:
+            firewall_logs_history = firewall_logs_history[-100:]
+            
+    # Update threat level
+    if eval_result.get("action") == "pause":
+        current_threat_level = 100.0
+    else:
+        # Decay threat level slowly if allowed
+        current_threat_level = max(0.0, current_threat_level - 5.0)
     
     # 2. Update status if Evaluator wants to pause
     if eval_result.get("action") == "pause":
@@ -79,6 +100,21 @@ async def get_traces():
         r['metadata'] = json.loads(r['metadata']) if r['metadata'] else {}
     
     return {"traces": rows}
+
+@app.get("/api/stats")
+async def get_stats():
+    """ Endpoint for Dashboard to fetch real-time budget, logs, and threat level """
+    # Get budget for db-admin-agent or fallback to 0
+    budget_spent = evaluator.agent_budgets.get("db-admin-agent", 0.0)
+    
+    return {
+        "budget": {
+            "spent": budget_spent,
+            "max": evaluator.max_budget
+        },
+        "threat_level": current_threat_level,
+        "logs": firewall_logs_history
+    }
 
 @app.post("/api/demo")
 async def run_demo():
